@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>黒闇天の救済パズル ～金太郎の魂を導け～</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+body{background:#0a0610;overflow:hidden;touch-action:none;display:flex;justify-content:center;align-items:center;height:100vh;height:100dvh;font-family:'Hiragino Kaku Gothic ProN',sans-serif}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="gc"></canvas>
+<script>
+const cv=document.getElementById('gc'),cx=cv.getContext('2d');
+let W,H,CELL,OFFX,OFFY;
+
+// ===== LEVELS =====
+const LEVELS=[
+{name:'目覚め',hint:'魂玉🔮を祠⛩️へ押せ',map:['######','#@   #','#  $ #','#   .#','######']},
+{name:'二つの道',hint:'二つの魂を導け',map:['#######','#.  @ #','#  $  #','#  $  #','#.    #','#######']},
+{name:'回り道',hint:'壁を使って回り込め',map:['#######','#  . @#','# #$  #','#     #','#######']},
+{name:'狭き門',hint:'順番が大事だ',map:['######','#  . #','#  $ #','# $. #','#  @ #','######']},
+{name:'冥界の門',hint:'中央を突破せよ',map:['########','#.  #  #','#  $   #','##  #  #','#  $ @.#','########']},
+{name:'渦巻き',hint:'外から内へ',map:['#######','#  .  #','# $$  #','#  .@ #','#######']},
+{name:'竜宮の回廊',hint:'三つの魂を導け',map:['#######','#  .  #','#  $  #','#.$ @.#','#  $  #','#     #','#######']},
+{name:'天の川',hint:'回り込みが鍵だ',map:['########','#   .  #','# $$   #','## .# ##','#  $   #','# @  . #','########']},
+{name:'鬼の迷路',hint:'壁を味方にせよ',map:['########','#.     #','# $ ## #','#  .@$ #','# $ ## #','#.     #','########']},
+{name:'玉手箱',hint:'通路を見極めよ',map:['########','#   .  #','# $  # #','## @$  #','# $  # #','#   .  #','#  .   #','########']},
+{name:'足柄山',hint:'袋小路に注意せよ',map:['#######','#.  # #','# $ . #','# #$  #','#   $ #','# @  .#','#######']},
+{name:'天上界の試練',hint:'十字の配置を読め',map:['#########','#   #   #','# $ . $ #','## .@. ##','# $ . $ #','#   #   #','#########']},
+{name:'天邪鬼の罠',hint:'左右を巧みに使え',map:['########','#. #  .#','# $$   #','#  @   #','# $$   #','#. #  .#','########']},
+{name:'運命の刻',hint:'五つの魂を統べよ',map:['########','# . .  #','# $$   #','## @# ##','# $$   #','# . .  #','#  $.  #','########']},
+{name:'金太郎復活',hint:'最後の試練',map:['########','#.   . #','# $$   #','## @# ##','# $$   #','#.   . #','#  $ . #','########']},
+];
+
+const itemPts={'🌿':5,'🍑':8,'🍶':10,'🔮':12,'💎':15,'🌸':10,'⭐':20,'🪞':14};
+
+// ===== STATE =====
+let state='title',level=0,grid=[],rows=0,cols=0,playerR=0,playerC=0;
+let moves=0,bestMoves=[],undoStack=[];
+let animating=false,animTime=0;
+const ANIM_DUR=0.1;
+let animPF=null,animBF=null,animBT=null,animDir=null;
+let particles=[],floats=[],shakeAmt=0,shakeDur=0,pulsePhase=0;
+let menuBtns={},uiUndo=null,uiReset=null,dpadBtns={};
+
+// ===== LEVEL LOADING =====
+function loadLevel(idx){
+  const lv=LEVELS[idx],map=lv.map;
+  rows=map.length;cols=Math.max(...map.map(r=>r.length));
+  grid=[];
+  for(let r=0;r<rows;r++){grid[r]=[];
+    for(let c=0;c<cols;c++){
+      const ch=(map[r]&&map[r][c])||' ';
+      let cell={wall:false,target:false,box:false,player:false};
+      switch(ch){
+        case'#':cell.wall=true;break;case'.':cell.target=true;break;
+        case'$':cell.box=true;break;case'@':cell.player=true;playerR=r;playerC=c;break;
+        case'*':cell.target=true;cell.box=true;break;
+        case'+':cell.target=true;cell.player=true;playerR=r;playerC=c;break;
+      }
+      grid[r][c]=cell;
+    }
+  }
+  moves=0;undoStack=[];particles=[];floats=[];
+  shakeAmt=0;shakeDur=0;animating=false;
+  recalcLayout();
+}
+
+function recalcLayout(){
+  W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
+  const isMob='ontouchstart'in window||navigator.maxTouchPoints>0;
+  const topPad=42,botPad=isMob?140:20;
+  const maxCW=Math.floor((W-20)/cols);
+  const maxCH=Math.floor((H-topPad-botPad)/rows);
+  CELL=Math.min(maxCW,maxCH,64);
+  OFFX=Math.floor((W-cols*CELL)/2);
+  OFFY=Math.floor((H-topPad-botPad-rows*CELL)/2)+topPad;
+}
+window.addEventListener('resize',()=>{if(state==='play')recalcLayout();});
+
+// ===== GAME LOGIC =====
+function isWalkable(r,c){return r>=0&&r<rows&&c>=0&&c<cols&&!grid[r][c].wall;}
+
+function tryMove(dr,dc){
+  if(animating)return;
+  const nr=playerR+dr,nc=playerC+dc;
+  if(!isWalkable(nr,nc))return;
+  const snap={pr:playerR,pc:playerC,boxMoved:null,boxFrom:null};
+  if(grid[nr][nc].box){
+    const br=nr+dr,bc=nc+dc;
+    if(!isWalkable(br,bc)||grid[br][bc].box)return;
+    snap.boxMoved={r:br,c:bc};snap.boxFrom={r:nr,c:nc};
+    grid[nr][nc].box=false;grid[br][bc].box=true;
+    animBF={r:nr,c:nc};animBT={r:br,c:bc};
+    if(grid[br][bc].target){
+      addP(OFFX+bc*CELL+CELL/2,OFFY+br*CELL+CELL/2,15,'#f0d060',120);
+      addF(OFFX+bc*CELL+CELL/2,OFFY+br*CELL,'✨','#f0d060');
+      shakeAmt=4;shakeDur=0.12;
+    }else{addP(OFFX+bc*CELL+CELL/2,OFFY+br*CELL+CELL/2,4,'#7b3ff2',40);}
+  }else{animBF=null;animBT=null;}
+  grid[playerR][playerC].player=false;
+  playerR=nr;playerC=nc;grid[nr][nc].player=true;
+  moves++;undoStack.push(snap);
+  animPF={r:snap.pr,c:snap.pc};animDir={dr,dc};
+  animating=true;animTime=0;
+  if(checkWin())setTimeout(()=>{
+    if(!bestMoves[level]||moves<bestMoves[level])bestMoves[level]=moves;
+    state=level<LEVELS.length-1?'clear':'allClear';
+  },300);
+}
+
+function checkWin(){
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)
+    if(grid[r][c].target&&!grid[r][c].box)return false;
+  return true;
+}
+
+function undo(){
+  if(!undoStack.length||animating)return;
+  const s=undoStack.pop();
+  grid[playerR][playerC].player=false;
+  playerR=s.pr;playerC=s.pc;grid[playerR][playerC].player=true;
+  if(s.boxMoved){grid[s.boxMoved.r][s.boxMoved.c].box=false;grid[s.boxFrom.r][s.boxFrom.c].box=true;}
+  moves--;
+}
+
+// ===== EFFECTS =====
+function addP(x,y,n,col,spd){
+  for(let i=0;i<n;i++){const a=Math.random()*6.28,s=spd*(0.3+Math.random()*0.7);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-30,life:0.4+Math.random()*0.3,ml:0.7,color:col,size:2+Math.random()*3});
+  }
+}
+function addF(x,y,t,c){floats.push({x,y,text:t,color:c,life:1});}
+
+// ===== INPUT =====
+window.addEventListener('keydown',e=>{
+  if(state==='play'){
+    switch(e.code){
+      case'ArrowUp':case'KeyW':tryMove(-1,0);break;
+      case'ArrowDown':case'KeyS':tryMove(1,0);break;
+      case'ArrowLeft':case'KeyA':tryMove(0,-1);break;
+      case'ArrowRight':case'KeyD':tryMove(0,1);break;
+      case'KeyZ':undo();break;case'KeyR':loadLevel(level);break;
+    }
+  }
+  e.preventDefault();
+});
+
+let tsX=0,tsY=0,tsT=0;
+cv.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];tsX=t.clientX;tsY=t.clientY;tsT=Date.now();
+},{passive:false});
+
+cv.addEventListener('touchend',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const dx=t.clientX-tsX,dy=t.clientY-tsY;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+
+  if(state!=='play'){handleMenu(t.clientX,t.clientY);return;}
+  if(handlePlayUI(t.clientX,t.clientY))return;
+  if(dist>25){
+    if(Math.abs(dx)>Math.abs(dy))tryMove(0,dx>0?1:-1);
+    else tryMove(dy>0?1:-1,0);
+  }else if(Date.now()-tsT<300){
+    const px=OFFX+playerC*CELL+CELL/2,py=OFFY+playerR*CELL+CELL/2;
+    const tdx=t.clientX-px,tdy=t.clientY-py;
+    if(Math.abs(tdx)>10||Math.abs(tdy)>10){
+      if(Math.abs(tdx)>Math.abs(tdy))tryMove(0,tdx>0?1:-1);
+      else tryMove(tdy>0?1:-1,0);
+    }
+  }
+},{passive:false});
+
+cv.addEventListener('click',e=>{handleMenu(e.clientX,e.clientY);if(state==='play')handlePlayUI(e.clientX,e.clientY);});
+
+function handleMenu(x,y){
+  for(const[n,r]of Object.entries(menuBtns)){
+    if(r&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+      if(n==='start'){level=0;loadLevel(0);state='play';}
+      if(n==='next'){level++;loadLevel(level);state='play';}
+      if(n==='retry'){loadLevel(level);state='play';}
+      if(n==='restart'){level=0;loadLevel(0);state='play';}
+      menuBtns={};return true;
+    }
+  }return false;
+}
+
+function handlePlayUI(x,y){
+  if(uiUndo&&x>=uiUndo.x&&x<=uiUndo.x+uiUndo.w&&y>=uiUndo.y&&y<=uiUndo.y+uiUndo.h){undo();return true;}
+  if(uiReset&&x>=uiReset.x&&x<=uiReset.x+uiReset.w&&y>=uiReset.y&&y<=uiReset.y+uiReset.h){loadLevel(level);return true;}
+  if(dpadBtns){for(const[d,r]of Object.entries(dpadBtns)){
+    if(r&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+      if(d==='up')tryMove(-1,0);if(d==='down')tryMove(1,0);
+      if(d==='left')tryMove(0,-1);if(d==='right')tryMove(0,1);
+      return true;
+    }
+  }}return false;
+}
+
+// ===== UPDATE =====
+function update(dt){
+  pulsePhase+=dt*3;
+  if(animating){animTime+=dt;if(animTime>=ANIM_DUR){animating=false;animPF=null;animBF=null;animBT=null;}}
+  particles=particles.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;p.life-=dt;return p.life>0;});
+  floats=floats.filter(f=>{f.y-=40*dt;f.life-=dt;return f.life>0;});
+  if(shakeDur>0)shakeDur-=dt;else shakeAmt=0;
+}
+
+// ===== RENDER =====
+function render(){
+  W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
+  const bg=cx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#0a0610');bg.addColorStop(1,'#1a0e30');
+  cx.fillStyle=bg;cx.fillRect(0,0,W,H);
+  if(state==='title'){renderTitle();return;}
+  if(state==='clear'){renderClear();return;}
+  if(state==='allClear'){renderAllClear();return;}
+  if(state!=='play')return;
+  recalcLayout();
+  cx.save();
+  if(shakeAmt>0)cx.translate((Math.random()-0.5)*shakeAmt*2,(Math.random()-0.5)*shakeAmt*2);
+  const t=animating?Math.min(animTime/ANIM_DUR,1):1;
+  const ease=t<0.5?2*t*t:-1+(4-2*t)*t;
+
+  // Grid
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const cell=grid[r][c],x=OFFX+c*CELL,y=OFFY+r*CELL;
+    if(cell.wall){
+      cx.fillStyle='#1a1040';cx.fillRect(x,y,CELL,CELL);
+      cx.fillStyle='#251550';cx.fillRect(x+2,y+2,CELL-4,CELL-4);
+    }else{
+      cx.fillStyle='#0f0820';cx.fillRect(x,y,CELL,CELL);
+      cx.strokeStyle='#1a104044';cx.lineWidth=0.5;cx.strokeRect(x,y,CELL,CELL);
+    }
+    // Target
+    if(cell.target){
+      const p=0.7+0.3*Math.sin(pulsePhase+r+c);
+      cx.globalAlpha=cell.box?0.3:p*0.5;
+      const gw=cx.createRadialGradient(x+CELL/2,y+CELL/2,2,x+CELL/2,y+CELL/2,CELL*0.45);
+      gw.addColorStop(0,'#f0d060');gw.addColorStop(1,'transparent');
+      cx.fillStyle=gw;cx.fillRect(x,y,CELL,CELL);
+      cx.globalAlpha=cell.box?0.4:p;
+      cx.font=Math.floor(CELL*0.5)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText(cell.box?'✅':'⛩️',x+CELL/2,y+CELL/2);
+      cx.globalAlpha=1;
+    }
+    // Static boxes
+    if(cell.box&&!cell.target){
+      if(!(animating&&animBT&&animBT.r===r&&animBT.c===c)&&
+         !(animating&&animBF&&animBF.r===r&&animBF.c===c)){
+        drawBox(x+CELL/2,y+CELL/2,false);
+      }
+    }
+  }
+
+  // Animated box
+  if(animating&&animBF&&animBT){
+    const fx=OFFX+animBF.c*CELL+CELL/2,fy=OFFY+animBF.r*CELL+CELL/2;
+    const tx=OFFX+animBT.c*CELL+CELL/2,ty=OFFY+animBT.r*CELL+CELL/2;
+    const onT=grid[animBT.r][animBT.c].target;
+    cx.save();
+    cx.translate(fx+(tx-fx)*ease,fy+(ty-fy)*ease);
+    const st=1+0.15*Math.sin(t*Math.PI);
+    if(animDir&&animDir.dc!==0)cx.scale(st,2-st);else cx.scale(2-st,st);
+    drawBox(0,0,onT);cx.restore();
+  }
+
+  // Player
+  {let px,py;
+  if(animating&&animPF){
+    const fx=OFFX+animPF.c*CELL+CELL/2,fy=OFFY+animPF.r*CELL+CELL/2;
+    const tx=OFFX+playerC*CELL+CELL/2,ty=OFFY+playerR*CELL+CELL/2;
+    px=fx+(tx-fx)*ease;py=fy+(ty-fy)*ease;
+  }else{px=OFFX+playerC*CELL+CELL/2;py=OFFY+playerR*CELL+CELL/2;}
+  drawPlayer(px,py);}
+
+  // Particles
+  for(const p of particles){
+    cx.globalAlpha=p.life/p.ml;cx.fillStyle=p.color;
+    cx.beginPath();cx.arc(p.x,p.y,p.size*(p.life/p.ml),0,6.28);cx.fill();
+  }cx.globalAlpha=1;
+  // Floats
+  for(const f of floats){
+    cx.globalAlpha=Math.min(1,f.life*2);cx.font='bold 18px serif';
+    cx.textAlign='center';cx.fillStyle=f.color;cx.fillText(f.text,f.x,f.y);
+  }cx.globalAlpha=1;
+  cx.restore();
+
+  renderHUD();renderDPad();
+}
+
+function drawBox(x,y,onT){
+  cx.globalAlpha=onT?0.35:0.2;
+  const g=cx.createRadialGradient(x,y,2,x,y,CELL*0.5);
+  g.addColorStop(0,onT?'#60ff60':'#7b3ff2');g.addColorStop(1,'transparent');
+  cx.fillStyle=g;cx.beginPath();cx.arc(x,y,CELL*0.5,0,6.28);cx.fill();
+  cx.globalAlpha=1;
+  cx.font=Math.floor(CELL*0.55)+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(onT?'💚':'🔮',x,y);
+}
+
+function drawPlayer(x,y){
+  cx.globalAlpha=0.12;
+  const g=cx.createRadialGradient(x,y,2,x,y,CELL*0.7);
+  g.addColorStop(0,'#c084fc');g.addColorStop(1,'transparent');
+  cx.fillStyle=g;cx.beginPath();cx.arc(x,y,CELL*0.7,0,6.28);cx.fill();
+  cx.globalAlpha=1;
+  const s=CELL*0.22;
+  cx.fillStyle='#1a0a2e';cx.beginPath();cx.ellipse(x,y+s*0.2,s*0.7,s,0,0,6.28);cx.fill();
+  cx.strokeStyle='#7b3ff266';cx.lineWidth=1;cx.stroke();
+  cx.fillStyle='#e8d5c4';cx.beginPath();cx.arc(x,y-s*0.55,s*0.48,0,6.28);cx.fill();
+  cx.fillStyle='#0a0015';cx.beginPath();cx.ellipse(x,y-s*0.7,s*0.52,s*0.32,0,Math.PI,6.28);cx.fill();
+  cx.fillStyle='#7b3ff2';
+  cx.beginPath();cx.arc(x-s*0.15,y-s*0.55,1.5,0,6.28);cx.fill();
+  cx.beginPath();cx.arc(x+s*0.15,y-s*0.55,1.5,0,6.28);cx.fill();
+  cx.font=Math.max(7,Math.floor(CELL*0.16))+'px sans-serif';
+  cx.fillStyle='#c084fc';cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.fillText('黒闇天',x,y+s*1.4);
+}
+
+function renderHUD(){
+  const lv=LEVELS[level];
+  cx.fillStyle='rgba(10,6,16,0.8)';cx.fillRect(0,0,W,38);
+  cx.textBaseline='alphabetic';
+  cx.font='bold 11px sans-serif';cx.textAlign='left';cx.fillStyle='#7b3ff2';
+  cx.fillText('第'+(level+1)+'面 '+lv.name,8,15);
+  cx.fillStyle='#9a8b7a';cx.font='10px sans-serif';cx.fillText(lv.hint,8,30);
+  cx.textAlign='right';cx.fillStyle='#d4a437';cx.font='bold 11px sans-serif';
+  cx.fillText('手数: '+moves,W-8,15);
+  const done=level;let kE='👴';if(done>=12)kE='💪';else if(done>=8)kE='🧑';else if(done>=4)kE='🧓';
+  cx.font='14px serif';cx.fillText(kE+' '+done+'/'+LEVELS.length,W-8,30);
+
+  const bw=44,bh=26;
+  const ux=W/2-bw-4,uy=6;uiUndo={x:ux,y:uy,w:bw,h:bh};
+  drawSB(ux,uy,bw,bh,'↩戻',undoStack.length>0);
+  const rx=W/2+4,ry=6;uiReset={x:rx,y:ry,w:bw,h:bh};
+  drawSB(rx,ry,bw,bh,'🔄',true);
+}
+
+function drawSB(x,y,w,h,label,active){
+  cx.fillStyle=active?'rgba(123,63,242,0.2)':'rgba(40,30,60,0.3)';
+  cx.beginPath();rr(cx,x,y,w,h,8);cx.fill();
+  cx.strokeStyle=active?'#7b3ff255':'#33225555';cx.lineWidth=1;cx.stroke();
+  cx.font='bold 10px sans-serif';
+  cx.fillStyle=active?'rgba(255,255,255,0.65)':'rgba(255,255,255,0.2)';
+  cx.textAlign='center';cx.textBaseline='middle';cx.fillText(label,x+w/2,y+h/2);
+}
+
+function renderDPad(){
+  const isMob='ontouchstart'in window||navigator.maxTouchPoints>0;
+  if(!isMob){dpadBtns={};return;}
+  const sz=Math.min(50,W*0.12),gap=4;
+  const cX=W/2,cY=H-sz*1.7-12;
+  dpadBtns.up={x:cX-sz/2,y:cY-sz-gap,w:sz,h:sz};
+  dpadBtns.down={x:cX-sz/2,y:cY+gap,w:sz,h:sz};
+  dpadBtns.left={x:cX-sz-gap-sz/2,y:cY-sz/2,w:sz,h:sz};
+  dpadBtns.right={x:cX+gap+sz/2,y:cY-sz/2,w:sz,h:sz};
+  drawDP(dpadBtns.up,'▲');drawDP(dpadBtns.down,'▼');
+  drawDP(dpadBtns.left,'◀');drawDP(dpadBtns.right,'▶');
+  cx.font='9px sans-serif';cx.fillStyle='rgba(255,255,255,0.2)';
+  cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.fillText('スワイプでも操作OK',cX,H-6);
+}
+
+function drawDP(r,l){
+  cx.fillStyle='rgba(123,63,242,0.15)';cx.beginPath();rr(cx,r.x,r.y,r.w,r.h,10);cx.fill();
+  cx.strokeStyle='#7b3ff233';cx.lineWidth=1;cx.stroke();
+  cx.font=Math.floor(r.w*0.45)+'px sans-serif';
+  cx.fillStyle='rgba(255,255,255,0.45)';cx.textAlign='center';cx.textBaseline='middle';
+  cx.fillText(l,r.x+r.w/2,r.y+r.h/2);
+}
+
+// ===== SCREENS =====
+function renderTitle(){
+  menuBtns={};cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.font=Math.min(46,W*0.11)+'px serif';
+  cx.fillText('🔮  ⛩️  👴',W/2,H*0.2);
+  cx.font='bold '+Math.min(24,W*0.058)+'px sans-serif';cx.fillStyle='#d4a437';
+  cx.fillText('黒闇天の救済パズル',W/2,H*0.31);
+  cx.font=Math.min(12,W*0.03)+'px sans-serif';cx.fillStyle='#9a8b7a';
+  cx.fillText('～ 金太郎の魂を導け ～',W/2,H*0.37);
+  const lines=['玉手箱を開けた金太郎は老人に…','黒闇天が魂玉🔮を祠⛩️へ押して金太郎を救う！','','🔮 → ⛩️  にすべて乗せればクリア！','操作: スワイプ / 十字ボタン / 矢印キー'];
+  cx.font=Math.min(11,W*0.027)+'px sans-serif';
+  lines.forEach((l,i)=>cx.fillText(l,W/2,H*0.45+i*18));
+  const bw=160,bh=46,bx=(W-bw)/2,by=H*0.73;
+  cx.fillStyle='#7b3ff2';cx.beginPath();rr(cx,bx,by,bw,bh,23);cx.fill();
+  cx.font='bold 16px sans-serif';cx.fillStyle='#fff';cx.fillText('始める',W/2,by+29);
+  menuBtns.start={x:bx,y:by,w:bw,h:bh};
+}
+
+function renderClear(){
+  menuBtns={};cx.fillStyle='rgba(10,6,16,0.93)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.font='40px serif';cx.fillText('✨',W/2,H*0.22);
+  cx.font='bold 20px sans-serif';cx.fillStyle='#d4a437';
+  cx.fillText('第'+(level+1)+'面 クリア！',W/2,H*0.33);
+  cx.font='12px sans-serif';cx.fillStyle='#9a8b7a';
+  cx.fillText(LEVELS[level].name,W/2,H*0.39);
+  cx.fillText('手数: '+moves+(bestMoves[level]?' (最少: '+bestMoves[level]+')':''),W/2,H*0.45);
+  const msgs=['「…少し力が戻ったようだな」','「二つの魂、導かれた」','「回り道も、道だ」','「順序の妙を悟ったか」','「冥界の門、開かれたり」','「渦巻く力が集う」','「竜宮の三つ魂を導いた」','「天の川が道を示した」','「鬼すら恐れぬ知恵よ」','「玉手箱の力が流れ込む」','「足柄山の霊力が蘇る」','「天上界の試練を越えた」','「天邪鬼の罠を見抜いた」','「運命の刻は近い…！」',''];
+  cx.fillText(msgs[level]||'',W/2,H*0.52);
+  const bw=150,bh=42,bx=(W-bw)/2,by=H*0.62;
+  cx.fillStyle='#7b3ff2';cx.beginPath();rr(cx,bx,by,bw,bh,21);cx.fill();
+  cx.font='bold 14px sans-serif';cx.fillStyle='#fff';cx.fillText('次の面へ',W/2,by+27);
+  menuBtns.next={x:bx,y:by,w:bw,h:bh};
+  const ry2=by+55;
+  cx.fillStyle='rgba(123,63,242,0.3)';cx.beginPath();rr(cx,(W-120)/2,ry2,120,34,16);cx.fill();
+  cx.font='12px sans-serif';cx.fillStyle='rgba(255,255,255,0.55)';
+  cx.fillText('もう一度挑戦',W/2,ry2+22);
+  menuBtns.retry={x:(W-120)/2,y:ry2,w:120,h:34};
+}
+
+function renderAllClear(){
+  menuBtns={};cx.fillStyle='rgba(10,6,16,0.93)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';cx.textBaseline='alphabetic';
+  cx.font='46px serif';cx.fillText('🎌💪🎌',W/2,H*0.17);
+  cx.font='bold 22px sans-serif';cx.fillStyle='#d4a437';
+  cx.fillText('金太郎、完全復活！',W/2,H*0.28);
+  cx.font='12px sans-serif';cx.fillStyle='#9a8b7a';
+  const lines=['全ての魂が祠に導かれ、金太郎は若返った。','','「…礼など要らぬ。お前の笑顔が、','千年の孤独を埋めて余りある報酬だ」','','黒闇天は微笑み、桜と共に消えていった。'];
+  lines.forEach((l,i)=>cx.fillText(l,W/2,H*0.36+i*18));
+  const total=bestMoves.reduce((a,b)=>a+(b||0),0);
+  cx.fillText('総手数: '+total,W/2,H*0.36+lines.length*18+10);
+  const bw=140,bh=40,bx=(W-bw)/2,by=H*0.82;
+  cx.fillStyle='#7b3ff2';cx.beginPath();rr(cx,bx,by,bw,bh,20);cx.fill();
+  cx.font='bold 14px sans-serif';cx.fillStyle='#fff';cx.fillText('最初から',W/2,by+26);
+  menuBtns.restart={x:bx,y:by,w:bw,h:bh};
+}
+
+function rr(ctx,x,y,w,h,r){ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+// ===== MAIN LOOP =====
+let lt=0;
+function loop(ts){const dt=Math.min((ts-lt)/1000,0.05);lt=ts;update(dt);render();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
