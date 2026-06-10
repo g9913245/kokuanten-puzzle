@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>DRAGON LEGEND ～勇者と魔竜王～</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+body{background:#000;overflow:hidden;touch-action:none;display:flex;justify-content:center;align-items:center;height:100vh;height:100dvh;font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif}
+canvas{display:block}
+</style>
+</head>
+<body>
+<canvas id="gc"></canvas>
+<script>
+"use strict";
+const cv=document.getElementById('gc'),cx=cv.getContext('2d');
+let W,H;
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;}
+addEventListener('resize',resize);resize();
+
+// ===== DATA START =====
+const MAPS={
+W:[
+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+"~MMMMMttt......tt~~~~ttt...MMMM~",
+"~MMh.............t~~~.tt.....hM~",
+"~Mh................~~.........M~",
+"~Mh..tt............~~~....tt..M~",
+"~M...tt.............~~....tt..M~",
+"~M..................~~........M~",
+"~M......C...........~~....hh..M~",
+"~M..................~~....hh..M~",
+"~M...........T.....==.........M~",
+"~M..................~~........M~",
+"~Mtt................~~.....tt.M~",
+"~Mtt................~~.....tt.M~",
+"~M.................~~~........M~",
+"~M.........hh.......~~........M~",
+"~~~~~~~~~=~~~~~~~~~~~~=~~~~~~~~~",
+"~M............................M~",
+"~M..ss............tt..........M~",
+"~M.sss.....MM.....tt......ss..M~",
+"~M..ss....MMM............sss..M~",
+"~M.......MM...............D...M~",
+"~M.ss...sM..........hh........M~",
+"~M.sss...M..........hh....ss..M~",
+"~M..ss..sMM..............sss..M~",
+"~MM..s...sMM.......tt.....ss..M~",
+"~MMs.ss....sM......tt.........M~",
+"~MMs....B..M..............tt..M~",
+"~MMss.................tt......M~",
+"~MM.ss...ss...............hh..M~",
+"~MMM................tt......MMM~",
+"~MMMMM........MMM.........MMMMM~",
+"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+],
+CAS:[
+"################",
+"#______________#",
+"#___rrrrrr_____#",
+"#___rrrrrr_____#",
+"#______________#",
+"#______________#",
+"#_#__________#_#",
+"#_#__________#_#",
+"#______________#",
+"#______________#",
+"#######EE#######",
+"################"
+],
+TWN:[
+"################",
+"#______________#",
+"#__#________#__#",
+"#______________#",
+"#______________#",
+"#______________#",
+"#__#________#__#",
+"#______________#",
+"#______________#",
+"#______________#",
+"#######EE#######",
+"################"
+],
+CV1:[
+"################",
+"#E_____________#",
+"#_####_######__#",
+"#_#__________#_#",
+"#_#_########_#_#",
+"#_#_#______#_#_#",
+"#_#_#_####_#_#_#",
+"#_#_#c___#_#_#_#",
+"#_#_######_#_#_#",
+"#_#________#_#_#",
+"#_##########_#>#",
+"################"
+],
+CV2:[
+"################",
+"#<_____________#",
+"#_____######_c_#",
+"#__#__#____#___#",
+"#__#__#____#___#",
+"#__#__#____#___#",
+"#__#__##__##___#",
+"#__#___________#",
+"#__#####_####__#",
+"#______________#",
+"#______________#",
+"################"
+],
+BOS:[
+"################",
+"#______________#",
+"#_#__________#_#",
+"#______________#",
+"#_#__________#_#",
+"#______________#",
+"#___##____##___#",
+"#______________#",
+"#_#__________#_#",
+"#____________c_#",
+"#######EE#######",
+"################"
+]
+};
+const ENTER={C:{map:'CAS',x:7,y:9,ex:8,ey:8},T:{map:'TWN',x:7,y:9,ex:13,ey:10},D:{map:'CV1',x:2,y:1,ex:26,ey:21},B:{map:'BOS',x:7,y:9,ex:8,ey:25}};
+const CHESTS={'CV1:5:7':120,'CV2:13:2':300,'BOS:13:9':500};
+const DARK={CV1:3.4,CV2:3.4};
+
+const MONSTERS={
+slime:{name:'スライム',e:'🟢',hp:4,atk:5,def:2,agi:3,exp:2,gold:3},
+rat:{name:'おおねずみ',e:'🐀',hp:7,atk:8,def:3,agi:5,exp:3,gold:5},
+bat:{name:'きゅうけつコウモリ',e:'🦇',hp:6,atk:7,def:2,agi:8,exp:3,gold:4},
+goblin:{name:'ゴブリン',e:'👺',hp:14,atk:13,def:6,agi:8,exp:7,gold:11},
+wolf:{name:'のやまのオオカミ',e:'🐺',hp:18,atk:16,def:8,agi:12,exp:9,gold:14},
+ghost:{name:'ゴースト',e:'👻',hp:15,atk:14,def:5,agi:10,exp:8,gold:12},
+skeleton:{name:'さまようがいこつ',e:'💀',hp:28,atk:24,def:12,agi:13,exp:16,gold:28},
+mage:{name:'まほうつかい',e:'🧙',hp:24,atk:18,def:10,agi:12,exp:18,gold:35,spell:'fire'},
+scorpion:{name:'おおさそり',e:'🦂',hp:30,atk:26,def:18,agi:14,exp:19,gold:30},
+mummy:{name:'ミイラおとこ',e:'🧟',hp:44,atk:34,def:18,agi:15,exp:32,gold:55},
+devil:{name:'あくまのきし',e:'😈',hp:40,atk:38,def:22,agi:18,exp:38,gold:65,spell:'fire'},
+golem:{name:'ゴーレム',e:'🗿',hp:65,atk:44,def:34,agi:10,exp:55,gold:80},
+dragon:{name:'ドラゴン',e:'🐉',hp:75,atk:58,def:40,agi:22,exp:90,gold:130,spell:'breath'},
+reaper:{name:'しにがみ',e:'☠️',hp:60,atk:52,def:32,agi:24,exp:75,gold:110,spell:'fire2'},
+knight:{name:'やみのきし',e:'🛡️',hp:70,atk:60,def:42,agi:20,exp:85,gold:120},
+boss1:{name:'魔竜王',e:'🧛',hp:110,atk:64,def:48,agi:26,exp:0,gold:0,spell:'fire2',boss:1},
+boss2:{name:'魔竜王(しんのすがた)',e:'🐲',hp:190,atk:78,def:56,agi:28,exp:0,gold:0,spell:'breath',boss:2}
+};
+const ZONES=[
+['slime','rat','bat'],
+['goblin','wolf','ghost','slime'],
+['skeleton','mage','scorpion','wolf'],
+['mummy','devil','golem','scorpion'],
+['dragon','reaper','knight','golem']
+];
+const WEAPONS=[{n:'たけのつえ',a:2,p:10},{n:'こんぼう',a:4,p:60},{n:'どうのつるぎ',a:10,p:180},{n:'てつのおの',a:15,p:560},{n:'はがねのつるぎ',a:20,p:1500},{n:'ほのおのつるぎ',a:28,p:9800}];
+const ARMORS=[{n:'ぬののふく',d:2,p:20},{n:'かわのよろい',d:4,p:70},{n:'くさりかたびら',d:10,p:300},{n:'はがねのよろい',d:16,p:3000},{n:'まほうのよろい',d:24,p:7700}];
+const SHIELDS=[{n:'かわのたて',d:4,p:90},{n:'てつのたて',d:10,p:800}];
+const SPELLS={heal:{n:'ヒール',mp:3},fire:{n:'ファイア',mp:3},return:{n:'リターン',mp:6},heal2:{n:'ハイヒール',mp:8},fire2:{n:'フレイム',mp:6}};
+const LEARN=[[3,'heal'],[4,'fire'],[8,'return'],[11,'heal2'],[13,'fire2']];
+const NPCS={
+CAS:[
+{x:7,y:3,e:'🤴',t:'king'},
+{x:4,y:5,e:'🧙‍♂️',d:['「わしは よげんしゃ。','魔竜王に いどむなら レベル15は ほしいのう。','ぬまちを あるくと からだが むしばまれる。きをつけよ」']},
+{x:5,y:8,e:'💂',d:['「ここは アレフガルドのしろ。','王さまが おまちかねだ」']},
+{x:10,y:8,e:'💂',d:['「東の町で そうびを ととのえるといい。','たびの じゅんびは だいじだぞ」']}
+],
+TWN:[
+{x:4,y:2,e:'⚔️',shop:'weapon'},
+{x:11,y:2,e:'🛡️',shop:'armor'},
+{x:4,y:6,e:'🧪',shop:'item'},
+{x:11,y:6,e:'🛏️',shop:'inn'},
+{x:7,y:4,e:'👩',d:['「セレナひめが 魔物に さらわれたの…','南の どうくつに とらわれている といううわさよ」']},
+{x:9,y:8,e:'👴',d:['「川の 東や 南のたいりくは つよい魔物が でるぞ。','レベルを あげてから いくのじゃ」']},
+{x:5,y:8,e:'👦',d:['「南西の くろいしろに 魔竜王が すんでいるんだって!','ぬまちの おくの おくだよ。こわいなあ…」']}
+],
+CV2:[{x:8,y:4,e:'👸',t:'princess'}],
+BOS:[{x:7,y:3,e:'🧛',t:'boss'}]
+};
+function maxHP(L){return 13+Math.floor(L*5.7);}
+function maxMP(L){return L<3?0:Math.floor((L-2)*4.6);}
+function strOf(L){return 4+Math.floor(L*2.4);}
+function agiOf(L){return 3+Math.floor(L*1.8);}
+function expFor(L){return Math.floor(6*Math.pow(L-1,2.3));}
+const MAXLV=20;
+// ===== DATA END =====
+
+// ===== AUDIO =====
+let AC=null;
+function sfx(f,d=0.08,type='square',v=0.05){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),ga=AC.createGain();o.type=type;o.frequency.value=f;ga.gain.value=v;o.connect(ga);ga.connect(AC.destination);o.start();ga.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+d);o.stop(AC.currentTime+d);}catch(e){}}
+function fanfare(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>sfx(f,0.18,'triangle',0.07),i*130));}
+
+// ===== STATE =====
+let scene='title',g=null,bt=null,statusOpen=false;
+let msgQ=[],msgCb=null,msgText='';
+const MS=[];
+let endT=0,endLines=[];
+const DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+function rnd(n){return Math.floor(Math.random()*n);}
+
+function newGame(){
+g={name:'アレフ',lv:1,exp:0,hp:maxHP(1),mp:0,gold:30,wp:-1,ar:-1,sh:-1,herbs:2,wings:0,
+map:'CAS',x:7,y:4,px:7,py:5,dir:'up',exit:{x:8,y:8},
+flags:{princess:false,delivered:false,boss:false,chests:[]}};
+}
+function saveGame(){try{localStorage.setItem('dl_save',JSON.stringify(g));return true;}catch(e){return false;}}
+function loadGame(){try{const s=localStorage.getItem('dl_save');if(!s)return false;g=JSON.parse(s);return true;}catch(e){return false;}}
+function hasSave(){try{return !!localStorage.getItem('dl_save');}catch(e){return false;}}
+
+// ===== MESSAGE =====
+function say(s,cb){msgQ=Array.isArray(s)?s.slice():[s];msgCb=cb||null;msgText=msgQ.shift();}
+function msgActive(){return msgText!=='';}
+function advMsg(){sfx(740,0.03,'square',0.03);if(msgQ.length){msgText=msgQ.shift();}else{msgText='';const cb=msgCb;msgCb=null;if(cb)cb();}}
+
+// ===== MENU =====
+function openMenu(o){MS.push(Object.assign({sel:0,cancelable:true},o));sfx(660,0.04,'square',0.03);}
+function menuInput(b){
+const m=MS[MS.length-1];
+if(b==='up'){m.sel=(m.sel+m.items.length-1)%m.items.length;sfx(880,0.03,'square',0.02);}
+else if(b==='down'){m.sel=(m.sel+1)%m.items.length;sfx(880,0.03,'square',0.02);}
+else if(b==='a'){const i=m.sel;MS.pop();if(m.onSel)m.onSel(i);}
+else if(b==='b'){if(!m.cancelable)return;MS.pop();sfx(330,0.04,'square',0.03);if(m.onCancel)m.onCancel();}
+}
+function yesNo(cb,cancelable){openMenu({items:['はい','いいえ'],cancelable:!!cancelable,onSel:i=>cb(i===0),onCancel:()=>cb(false)});}
+
+// ===== PLAYER STATS =====
+function pAtkV(){return strOf(g.lv)+(g.wp>=0?WEAPONS[g.wp].a:0);}
+function pDefV(){return Math.floor(agiOf(g.lv)/2)+(g.ar>=0?ARMORS[g.ar].d:0)+(g.sh>=0?SHIELDS[g.sh].d:0);}
+function knownSpells(){return LEARN.filter(a=>g.lv>=a[0]).map(a=>a[1]);}
+function calcDmg(atk,def){const base=atk-def/2;if(base<2)return Math.random()<0.4?0:1;return Math.max(0,Math.floor(base*(2+Math.random()*2)/8));}
+
+// ===== FIELD =====
+function tileAt(map,x,y){const m=MAPS[map];if(y<0||y>=m.length||x<0||x>=m[0].length)return map==='W'?'~':'#';return m[y][x];}
+function blockedTile(t){return t==='#'||t==='~'||t==='M';}
+function npcHidden(n){return (n.t==='princess'&&g.flags.princess)||(n.t==='boss'&&g.flags.boss);}
+function npcAt(map,x,y){const l=NPCS[map];if(!l)return null;return l.find(n=>n.x===x&&n.y===y&&!npcHidden(n))||null;}
+
+function tryMove(dx,dy,dir){
+g.dir=dir;
+const nx=g.x+dx,ny=g.y+dy;
+const t=tileAt(g.map,nx,ny);
+if(blockedTile(t)||npcAt(g.map,nx,ny))return;
+g.px=g.x;g.py=g.y;g.x=nx;g.y=ny;
+stepEvents(t);
+}
+function stepEvents(t){
+const ck=g.map+':'+g.x+':'+g.y;
+if(t==='c'&&!g.flags.chests.includes(ck)){g.flags.chests.push(ck);const v=CHESTS[ck]||50;g.gold+=v;sfx(990,0.15,'triangle',0.06);say('たからばこを あけた!\n'+v+'ゴールドを てにいれた!');return;}
+if(t==='s'){g.hp=Math.max(0,g.hp-2);sfx(140,0.1,'sawtooth',0.04);if(g.hp<=0){die();return;}}
+if(g.map==='W'){
+const e=ENTER[t];
+if(e){g.exit={x:e.ex,y:e.ey};g.map=e.map;g.x=e.x;g.y=e.y;g.px=e.x;g.py=e.y;g.dir='up';sfx(520,0.08);return;}
+}else{
+if(t==='E'){g.map='W';g.x=g.exit.x;g.y=g.exit.y;g.px=g.x;g.py=g.y;g.dir='down';sfx(520,0.08);return;}
+if(t==='>'&&g.map==='CV1'){g.map='CV2';g.x=1;g.y=1;g.px=1;g.py=1;sfx(420,0.08);return;}
+if(t==='<'&&g.map==='CV2'){g.map='CV1';g.x=14;g.y=10;g.px=14;g.py=10;sfx(420,0.08);return;}
+}
+maybeEncounter(t);
+}
+function zoneOf(){
+if(g.map==='CV1')return 3;
+if(g.map==='CV2')return 4;
+if(g.map==='BOS')return 4;
+const x=g.x,y=g.y;
+if(y>=21&&x<=13)return 4;
+if(y>=16)return 3;
+if(x>=19)return 2;
+return (Math.abs(x-8)+Math.abs(y-7))<8?0:1;
+}
+function maybeEncounter(t){
+if(g.flags.boss)return;
+let rate=0;
+if(g.map==='W'){rate=(t==='t'||t==='h')?1/10:t==='s'?1/8:1/15;}
+else if(g.map==='CV1'||g.map==='CV2')rate=1/11;
+else if(g.map==='BOS')rate=1/12;
+else return;
+if(Math.random()<rate){const z=ZONES[zoneOf()];startBattle(z[rnd(z.length)]);}
+}
+
+function interact(){
+const d=DIRS[g.dir],x=g.x+d.x,y=g.y+d.y;
+const n=npcAt(g.map,x,y);
+if(!n)return;
+if(n.shop)shopMenu(n.shop);
+else if(n.t==='king')kingTalk();
+else if(n.t==='princess')say(['👸「たすけに きてくれたのですね!','わたしは セレナ。どうか おしろへ…」','セレナひめを つれていくことにした!'],()=>{g.flags.princess=true;fanfare();});
+else if(n.t==='boss')bossTalk();
+else say(n.d);
+}
+function kingTalk(){
+if(g.flags.boss){say(['王「おお…せかいに ひかりが もどった!','そなたこそ まことの ゆうしゃじゃ!','このくにの でんせつとして かたりつがれるであろう」']);return;}
+if(g.flags.princess&&!g.flags.delivered){
+g.flags.delivered=true;g.gold+=300;fanfare();
+say(['王「おお! セレナ! ぶじで なによりじゃ…!','ゆうしゃ アレフよ、れいを いうぞ。','ほうびに 300ゴールドを さずけよう!」','👸「アレフさま… どうか ごぶじで。おうえんしています」'],()=>kingHealSave());
+return;
+}
+kingHealSave();
+}
+function kingHealSave(){
+g.hp=maxHP(g.lv);g.mp=maxMP(g.lv);
+say(['王「よくぞ もどった ゆうしゃよ。きずを いやしてやろう」','HPとMPが かいふくした!','王「ぼうけんのしょに きろくするか?」'],()=>{
+yesNo(y=>{
+if(y){const ok=saveGame();say(ok?'きろくした! ゆうきをもって すすむのじゃ!':'…きろくに しっぱいしたようじゃ。');}
+else say('王「むりは するでないぞ」');
+});
+});
+}
+function bossTalk(){
+say(['魔竜王「よくぞ きた ゆうしゃよ。','わしと てをくめば この よの はんぶんを くれてやろう。','どうじゃ?」'],()=>{
+yesNo(y=>{
+if(y)say(['魔竜王「ぐふふ… うそを つくでない。','ゆうしゃの ひとみは ごまかせぬわ!」'],()=>startBattle('boss1'));
+else say('魔竜王「ならば ここで ほろびるがよい!」',()=>startBattle('boss1'));
+});
+});
+}
+
+function die(){
+sfx(60,0.5,'sawtooth',0.06);
+say([g.name+'は ちからつきた…','…','…めを さますと しろの なかだった。'],()=>{
+g.gold=Math.floor(g.gold/2);
+g.hp=maxHP(g.lv);g.mp=maxMP(g.lv);
+g.map='CAS';g.x=7;g.y=4;g.px=7;g.py=5;g.dir='up';
+bt=null;MS.length=0;scene='field';
+say('王「おお '+g.name+'よ、いきておったか。\nもちものの はんぶんを ちりょうだいに もらったぞ。\nつぎは きをつけるのじゃ」');
+});
+}
+
+// ===== BATTLE =====
+function spawnM(k){const b=MONSTERS[k];const m=Object.assign({},b);m.key=k;m.hp=Math.floor(b.hp*(0.85+Math.random()*0.16));m.maxhp=m.hp;return m;}
+function startBattle(k){
+scene='battle';MS.length=0;bt={m:spawnM(k)};
+sfx(200,0.2,'sawtooth',0.05);setTimeout(()=>sfx(150,0.2,'sawtooth',0.05),120);
+say(bt.m.name+'が あらわれた!',()=>{
+if(!bt.m.boss&&Math.random()<1/6)say('ふいを つかれた!',()=>eTurn());
+else bcmd();
+});
+}
+function bcmd(){
+openMenu({title:'コマンド',items:['たたかう','じゅもん','どうぐ','にげる'],cancelable:false,battle:true,onSel:i=>{
+if(i===0)pAttack();
+else if(i===1)bSpellMenu();
+else if(i===2)bItemMenu();
+else flee();
+}});
+}
+function pAttack(){
+const m=bt.m;const atk=pAtkV();
+const crit=!m.boss&&Math.random()<1/16;
+const dmg=crit?Math.floor(atk*(0.7+Math.random()*0.3)):calcDmg(atk,m.def);
+const L=[g.name+'の こうげき!'];
+if(crit)L.push('かいしんの いちげき!!');
+L.push(dmg>0?m.name+'に '+dmg+'の ダメージ!':'ミス! ダメージを あたえられない!');
+sfx(dmg>0?180:90,0.1);
+say(L,()=>{m.hp-=dmg;if(m.hp<=0)bWin();else eTurn();});
+}
+function bSpellMenu(){
+const ks=knownSpells();
+if(!ks.length){say('まだ じゅもんを おぼえていない!',()=>bcmd());return;}
+openMenu({title:'じゅもん',items:ks.map(k=>SPELLS[k].n+'  MP'+SPELLS[k].mp),battle:true,onSel:i=>castB(ks[i]),onCancel:()=>bcmd()});
+}
+function castB(k){
+const sp=SPELLS[k];
+if(k==='return'){say('たたかいの さなかに つかえない!',()=>bcmd());return;}
+if(g.mp<sp.mp){say('MPが たりない!',()=>bcmd());return;}
+g.mp-=sp.mp;sfx(1200,0.15,'triangle',0.05);
+const m=bt.m;
+if(k==='heal'||k==='heal2'){
+const v=k==='heal'?20+rnd(9):75+rnd(21);
+say([g.name+'は '+sp.n+'を となえた!','HPが '+v+' かいふくした!'],()=>{g.hp=Math.min(maxHP(g.lv),g.hp+v);eTurn();});
+}else{
+const v=k==='fire'?9+rnd(8):28+rnd(13);
+say([g.name+'は '+sp.n+'を となえた!',m.name+'に '+v+'の ダメージ!'],()=>{m.hp-=v;if(m.hp<=0)bWin();else eTurn();});
+}
+}
+function bItemMenu(){
+if(g.herbs<=0){say('つかえる どうぐを もっていない!',()=>bcmd());return;}
+openMenu({title:'どうぐ',items:['やくそう ×'+g.herbs],battle:true,onSel:()=>{
+g.herbs--;const v=25+rnd(11);sfx(900,0.1,'triangle',0.05);
+say([g.name+'は やくそうを つかった!','HPが '+v+' かいふくした!'],()=>{g.hp=Math.min(maxHP(g.lv),g.hp+v);eTurn();});
+},onCancel:()=>bcmd()});
+}
+function flee(){
+const m=bt.m;
+if(m.boss){say('にげられない!',()=>eTurn());return;}
+if(Math.random()*agiOf(g.lv)>=Math.random()*m.agi*0.7){sfx(500,0.1);say(g.name+'は にげだした!',()=>{bt=null;scene='field';});}
+else say([g.name+'は にげだした!','しかし まわりこまれてしまった!'],()=>eTurn());
+}
+function eTurn(){
+const m=bt.m;let L=[],dmg=0;
+if(m.spell&&Math.random()<0.35){
+if(m.spell==='fire'){dmg=7+rnd(6);L=[m.name+'は ほのおのじゅもんを となえた!'];}
+else if(m.spell==='fire2'){dmg=16+rnd(9);L=[m.name+'は ごうかのじゅもんを となえた!'];}
+else{dmg=22+rnd(11);L=[m.name+'は はげしいほのおを はいた!'];}
+L.push(g.name+'は '+dmg+'の ダメージを うけた!');
+}else{
+dmg=calcDmg(m.atk,pDefV());
+L=[m.name+'の こうげき!'];
+L.push(dmg>0?g.name+'は '+dmg+'の ダメージを うけた!':'ミス! '+g.name+'は みをかわした!');
+}
+sfx(120,0.12,'sawtooth',0.05);
+say(L,()=>{g.hp-=dmg;if(g.hp<=0){g.hp=0;die();}else bcmd();});
+}
+function bWin(){
+const m=bt.m;
+if(m.boss===1){
+say(['魔竜王を うちたおした!','…だが くろいかげが ふくれあがっていく!','「ほう… なかなか やるではないか」','魔竜王が しんのすがたを あらわした!!'],()=>{bt={m:spawnM('boss2')};sfx(100,0.4,'sawtooth',0.07);bcmd();});
+return;
+}
+if(m.boss===2){g.flags.boss=true;fanfare();say(['魔竜王は ほろびさった!','せかいに ひかりが もどっていく…!'],()=>ending());return;}
+sfx(700,0.1,'triangle',0.05);
+const L=[m.name+'を たおした!','けいけんち '+m.exp+'、'+m.gold+'ゴールドを かくとく!'];
+g.exp+=m.exp;g.gold+=m.gold;
+while(g.lv<MAXLV&&g.exp>=expFor(g.lv+1)){
+const oh=maxHP(g.lv),om=maxMP(g.lv);
+g.lv++;
+g.hp+=maxHP(g.lv)-oh;g.mp+=maxMP(g.lv)-om;
+L.push('♪ レベル '+g.lv+'に あがった!');
+const sp=LEARN.find(a=>a[0]===g.lv);
+if(sp)L.push(SPELLS[sp[1]].n+'の じゅもんを おぼえた!');
+fanfare();
+}
+say(L,()=>{bt=null;scene='field';});
+}
+
+// ===== SHOPS =====
+function shopMenu(type){
+if(type==='inn'){
+say('🛏️「ひとばん 10ゴールドだよ。とまっていくかい?」',()=>yesNo(y=>{
+if(!y){say('「またの おこしを!」');return;}
+if(g.gold<10){say('「おや、おかねが たりないようだね」');return;}
+g.gold-=10;g.hp=maxHP(g.lv);g.mp=maxMP(g.lv);sfx(880,0.2,'triangle',0.05);
+say(['ぐっすり ねむった…','HPとMPが かいふくした!','「いってらっしゃい! ごぶじで!」']);
+}));
+return;
+}
+if(type==='weapon'){say('⚔️「いらっしゃい! ぶきを みていくかい?」',()=>buyMenu(WEAPONS.map((w,i)=>({n:w.n,p:w.p,eq:()=>g.wp=i,cur:g.wp===i}))));return;}
+if(type==='armor'){
+const list=ARMORS.map((a,i)=>({n:a.n,p:a.p,eq:()=>g.ar=i,cur:g.ar===i})).concat(SHIELDS.map((s,i)=>({n:s.n,p:s.p,eq:()=>g.sh=i,cur:g.sh===i})));
+say('🛡️「ぼうぐは みを たすけるよ!」',()=>buyMenu(list));return;
+}
+say('🧪「くすりや どうぐは いかが?」',()=>buyMenu([
+{n:'やくそう',p:12,eq:()=>{g.herbs=Math.min(9,g.herbs+1);},item:true},
+{n:'かえりのはね',p:25,eq:()=>{g.wings=Math.min(9,g.wings+1);},item:true}
+]));
+}
+function buyMenu(list){
+openMenu({title:'おかいもの  G:'+g.gold,gold:true,items:list.map(it=>(it.cur?'E ':'  ')+it.n+'  '+it.p+'G'),onSel:i=>{
+const it=list[i];
+if(g.gold<it.p){say('「おかねが たりないようだね」',()=>buyMenu(list));return;}
+g.gold-=it.p;it.eq();sfx(990,0.1,'triangle',0.05);
+say(it.item?it.n+'を かった!':it.n+'を かった!\nさっそく そうびした!',()=>buyMenu(list));
+},onCancel:()=>say('「まいど ありがとう!」')});
+}
+
+// ===== FIELD MENU =====
+function fieldMenu(){
+openMenu({title:'メニュー',items:['つよさ','じゅもん','どうぐ'],onSel:i=>{
+if(i===0)statusOpen=true;
+else if(i===1)fieldSpell();
+else fieldItem();
+}});
+}
+function fieldSpell(){
+const ks=knownSpells();
+if(!ks.length){say('まだ じゅもんを おぼえていない。');return;}
+openMenu({title:'じゅもん',items:ks.map(k=>SPELLS[k].n+'  MP'+SPELLS[k].mp),onSel:i=>{
+const k=ks[i],sp=SPELLS[k];
+if(g.mp<sp.mp){say('MPが たりない!');return;}
+if(k==='heal'||k==='heal2'){
+g.mp-=sp.mp;const v=k==='heal'?20+rnd(9):75+rnd(21);
+g.hp=Math.min(maxHP(g.lv),g.hp+v);sfx(1200,0.15,'triangle',0.05);
+say(sp.n+'を となえた!\nHPが '+v+' かいふくした!');
+}else if(k==='return'){
+if(g.map!=='W'&&g.map!=='CAS'&&g.map!=='TWN'){say('ここでは つかえない!');return;}
+g.mp-=sp.mp;warpHome();
+}else say('ここで となえても なにも おこらない。');
+}});
+}
+function fieldItem(){
+const items=[],acts=[];
+if(g.herbs>0){items.push('やくそう ×'+g.herbs);acts.push(()=>{g.herbs--;const v=25+rnd(11);g.hp=Math.min(maxHP(g.lv),g.hp+v);sfx(900,0.1,'triangle',0.05);say('やくそうを つかった!\nHPが '+v+' かいふくした!');});}
+if(g.wings>0){items.push('かえりのはね ×'+g.wings);acts.push(()=>{if(g.map!=='W'){say('ここでは つかえない!');return;}g.wings--;warpHome();});}
+if(!items.length){say('なにも もっていない。');return;}
+openMenu({title:'どうぐ',items,onSel:i=>acts[i]()});
+}
+function warpHome(){
+sfx(1500,0.3,'triangle',0.05);
+g.map='W';g.x=8;g.y=8;g.px=8;g.py=8;g.dir='down';
+say('からだが ふわりと うきあがり…\nしろの ちかくへ もどった!');
+}
+
+// ===== ENDING / TITLE =====
+function ending(){
+bt=null;MS.length=0;msgText='';
+endLines=['魔竜王は ほろび、','せかいに ひかりが もどった!','',
+g.flags.delivered?'しろでは セレナひめが':'どこかで セレナひめが',
+g.flags.delivered?'えがおで まっている。':'あなたを まっている…','',
+'ひとびとは いつまでも うたう。','ゆうしゃ アレフの でんせつを。','','','～ DRAGON LEGEND ～','','THE END'];
+endT=0;scene='ending';
+}
+function toTitle(){
+scene='title';MS.length=0;msgText='';statusOpen=false;bt=null;
+const items=['はじめから'];
+if(hasSave())items.push('つづきから');
+openMenu({items,cancelable:false,onSel:i=>{
+if(i===1&&loadGame()){scene='field';say('ぼうけんのしょを よみこんだ!');return;}
+newGame();scene='field';
+say(['王「おお ゆうしゃ アレフよ! よくぞ まいった。','魔竜王が せかいを やみにしずめ、','セレナひめを さらっていったのじゃ。','どうか 魔竜王を たおし ひかりを とりもどしてくれ!','たびのしたくに 30ゴールドを さずけよう。','まずは 東の町で そうびを ととのえるがよい」']);
+}});
+}
+
+// ===== INPUT =====
+const keys={};
+let moveCd=0;
+function onBtn(b){
+if(scene==='title'){if(MS.length)menuInput(b);return;}
+if(scene==='ending'){if(b==='a'&&endT>endLines.length*40+120)toTitle();return;}
+if(statusOpen){if(b==='a'||b==='b'){statusOpen=false;sfx(330,0.04);}return;}
+if(msgActive()){if(b==='a'||b==='b')advMsg();return;}
+if(MS.length){menuInput(b);return;}
+if(scene==='field'){
+if(b==='a')interact();
+else if(b==='b')fieldMenu();
+}
+}
+addEventListener('keydown',e=>{
+const k=e.key;
+if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k))e.preventDefault();
+const map={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};
+if(map[k]){keys[map[k]]=true;onBtn(map[k]);return;}
+if(k==='z'||k==='Z'||k==='Enter'||k===' ')onBtn('a');
+if(k==='x'||k==='X'||k==='Escape'||k==='Backspace')onBtn('b');
+});
+addEventListener('keyup',e=>{
+const map={ArrowUp:'up',w:'up',ArrowDown:'down',s:'down',ArrowLeft:'left',a:'left',ArrowRight:'right',d:'right'};
+if(map[e.key])keys[map[e.key]]=false;
+});
+
+// touch controls
+let TB={};
+let touchDir=null;
+function hitBtn(x,y){
+for(const k in TB){const b=TB[k];if(Math.hypot(x-b.x,y-b.y)<b.r*1.25)return k;}
+return null;
+}
+cv.addEventListener('pointerdown',e=>{
+const k=hitBtn(e.clientX,e.clientY);
+if(k==='a'||k==='b'){onBtn(k);return;}
+if(k){touchDir=k;onBtn(k);return;}
+if(isTouch&&!k)onBtn('a');
+});
+cv.addEventListener('pointermove',e=>{
+if(touchDir){const k=hitBtn(e.clientX,e.clientY);if(k&&k!=='a'&&k!=='b')touchDir=k;}
+});
+cv.addEventListener('pointerup',()=>{touchDir=null;});
+cv.addEventListener('pointercancel',()=>{touchDir=null;});
+
+// ===== UPDATE =====
+let last=0;
+function update(dt){
+moveCd-=dt;
+if(scene==='field'&&!msgActive()&&!MS.length&&!statusOpen&&moveCd<=0){
+let d=null;
+if(touchDir)d=touchDir;
+else for(const k of ['up','down','left','right'])if(keys[k]){d=k;break;}
+if(d){tryMove(DIRS[d].x,DIRS[d].y,d);moveCd=0.14;}
+}
+if(scene==='ending')endT+=dt*60;
+}
+
+// ===== DRAW =====
+function winBox(x,y,w,h){
+cx.fillStyle='rgba(0,0,24,0.92)';
+cx.fillRect(x,y,w,h);
+cx.strokeStyle='#fff';cx.lineWidth=3;
+cx.strokeRect(x+4,y+4,w-8,h-8);
+}
+function txt(s,x,y,size,color,align){
+cx.font=size+'px "Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif';
+cx.fillStyle=color||'#fff';cx.textAlign=align||'left';cx.textBaseline='top';
+cx.fillText(s,x,y);
+}
+function emoji(s,x,y,size){
+cx.font=size+'px serif';cx.textAlign='center';cx.textBaseline='middle';
+cx.fillText(s,x,y);
+}
+function wrapText(s,n){
+const out=[];
+for(const seg of String(s).split('\n')){
+if(!seg.length){out.push('');continue;}
+for(let i=0;i<seg.length;i+=n)out.push(seg.slice(i,i+n));
+}
+return out;
+}
+const TCOL={'.':'#3f8f42','t':'#2f7a35','h':'#7fa04f','M':'#8a8f96','~':'#2b5fc4','=':'#9c7444','s':'#5d4a7d','C':'#3f8f42','T':'#3f8f42','D':'#67a06a','B':'#3a3a44','#':'#5a5a66','_':'#a89878','r':'#aa3333','<':'#a89878','>':'#a89878','E':'#a89878','c':'#a89878'};
+const TEMO={'t':'🌲','M':'⛰️','C':'🏰','T':'🏠','D':'🕳️','B':'🏯','E':'🚪','>':'🔽','<':'🔼'};
+function drawMsgWin(){
+const fs=Math.max(15,Math.min(22,Math.floor(W/26)));
+const mw=Math.min(W-16,640);
+const lines=wrapText(msgText,Math.floor((mw-50)/fs));
+const mh=Math.max(3,lines.length)*Math.floor(fs*1.45)+34;
+const x=(W-mw)/2,y=H-mh-(isTouch?Math.min(190,H*0.24):12);
+winBox(x,y,mw,mh);
+lines.forEach((l,i)=>txt(l,x+24,y+18+i*Math.floor(fs*1.45),fs));
+if(Math.floor(Date.now()/400)%2===0)txt('▼',x+mw-32,y+mh-fs-10,fs);
+}
+function drawMenus(){
+const fs=Math.max(15,Math.min(21,Math.floor(W/30)));
+MS.forEach((m,mi)=>{
+let mw=(m.title?m.title.length:0);
+m.items.forEach(it=>{mw=Math.max(mw,it.length);});
+mw=mw*fs+70;
+const mh=m.items.length*Math.floor(fs*1.5)+(m.title?fs*1.7:0)+30;
+const x=Math.min(W-mw-10,W*0.55+mi*22),y=Math.max(10,H*0.16+mi*30);
+winBox(x,y,mw,mh);
+let ty=y+16;
+if(m.title){txt(m.title,x+22,ty,fs,'#ffd95e');ty+=fs*1.7;}
+m.items.forEach((it,i)=>{
+if(i===m.sel)txt('▶',x+12,ty,fs,'#fff');
+txt(it,x+12+fs*1.4,ty,fs,i===m.sel?'#fff':'#ccc');
+ty+=Math.floor(fs*1.5);
+});
+});
+}
+function drawHud(){
+const fs=Math.max(13,Math.min(18,Math.floor(W/40)));
+const w=fs*10.5,h=fs*6.4;
+winBox(8,8,w,h);
+txt(g.name,22,20,fs,'#ffd95e');
+txt('LV '+g.lv,22,20+fs*1.4,fs);
+txt('HP '+g.hp+'/'+maxHP(g.lv),22,20+fs*2.8,fs,g.hp<maxHP(g.lv)/4?'#ff7a6b':'#fff');
+txt('MP '+g.mp+'/'+maxMP(g.lv),22,20+fs*4.2,fs);
+}
+function drawTouchUI(){
+if(!isTouch)return;
+const r=Math.min(46,W*0.07);
+const cxp=r*2.1,cyp=H-r*2.1;
+TB={
+up:{x:cxp,y:cyp-r*1.5,r},down:{x:cxp,y:cyp+r*1.5,r},
+left:{x:cxp-r*1.5,y:cyp,r},right:{x:cxp+r*1.5,y:cyp,r},
+a:{x:W-r*1.6,y:H-r*2.9,r:r*1.1},b:{x:W-r*3.6,y:H-r*1.7,r:r*0.95}
+};
+cx.globalAlpha=0.45;
+for(const k in TB){
+const b=TB[k];
+cx.fillStyle=k==='a'?'#d44':k==='b'?'#46c':'#888';
+cx.beginPath();cx.arc(b.x,b.y,b.r,0,7);cx.fill();
+cx.fillStyle='#fff';cx.font=Math.floor(b.r*0.8)+'px sans-serif';
+cx.textAlign='center';cx.textBaseline='middle';
+cx.fillText({up:'↑',down:'↓',left:'←',right:'→',a:'A',b:'B'}[k],b.x,b.y);
+}
+cx.globalAlpha=1;
+}
+function drawField(){
+const m=MAPS[g.map],mw=m[0].length,mh=m.length;
+const ts=Math.max(28,Math.floor(Math.min(W/13,H/11)));
+let camx=g.x*ts+ts/2-W/2,camy=g.y*ts+ts/2-H/2;
+camx=Math.max(0,Math.min(camx,mw*ts-W));camy=Math.max(0,Math.min(camy,mh*ts-H));
+if(mw*ts<W)camx=(mw*ts-W)/2;
+if(mh*ts<H)camy=(mh*ts-H)/2;
+cx.fillStyle='#000';cx.fillRect(0,0,W,H);
+const x0=Math.max(0,Math.floor(camx/ts)),y0=Math.max(0,Math.floor(camy/ts));
+const x1=Math.min(mw-1,Math.ceil((camx+W)/ts)),y1=Math.min(mh-1,Math.ceil((camy+H)/ts));
+const dark=DARK[g.map];
+for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+if(dark&&Math.hypot(x-g.x,y-g.y)>dark)continue;
+const t=m[y][x];
+const sx=x*ts-camx,sy=y*ts-camy;
+cx.fillStyle=TCOL[t]||'#222';
+cx.fillRect(sx,sy,ts+1,ts+1);
+if(t==='#'){cx.strokeStyle='rgba(0,0,0,0.25)';cx.lineWidth=1;cx.strokeRect(sx+2,sy+2,ts-4,ts/2-2);cx.strokeRect(sx+2,sy+ts/2,ts-4,ts/2-2);}
+if(t==='='){cx.strokeStyle='#6b4d2a';cx.lineWidth=2;for(let i=1;i<4;i++){cx.beginPath();cx.moveTo(sx,sy+i*ts/4);cx.lineTo(sx+ts,sy+i*ts/4);cx.stroke();}}
+if(t==='s'){cx.fillStyle='rgba(30,20,50,0.5)';cx.beginPath();cx.arc(sx+ts*0.3,sy+ts*0.4,ts*0.12,0,7);cx.arc(sx+ts*0.7,sy+ts*0.65,ts*0.1,0,7);cx.fill();}
+if(t==='c'&&!g.flags.chests.includes(g.map+':'+x+':'+y))emoji('📦',sx+ts/2,sy+ts/2,ts*0.7);
+const e=TEMO[t];
+if(e)emoji(e,sx+ts/2,sy+ts/2,ts*0.8);
+}
+const npcs=NPCS[g.map]||[];
+for(const n of npcs){
+if(npcHidden(n))continue;
+if(dark&&Math.hypot(n.x-g.x,n.y-g.y)>dark)continue;
+emoji(n.e,n.x*ts-camx+ts/2,n.y*ts-camy+ts/2,ts*0.8);
+}
+if(g.flags.princess&&!g.flags.delivered)
+emoji('👸',g.px*ts-camx+ts/2,g.py*ts-camy+ts/2,ts*0.75);
+emoji('🤺',g.x*ts-camx+ts/2,g.y*ts-camy+ts/2,ts*0.85);
+drawHud();
+}
+function drawBattle(){
+const m=bt.m;
+const grd=cx.createLinearGradient(0,0,0,H);
+if(DARK[g.map]||g.map==='BOS'){grd.addColorStop(0,'#0a0a14');grd.addColorStop(1,'#1c1428');}
+else{grd.addColorStop(0,'#0c1c3c');grd.addColorStop(0.62,'#23406b');grd.addColorStop(0.62,'#244a28');grd.addColorStop(1,'#173318');}
+cx.fillStyle=grd;cx.fillRect(0,0,W,H);
+const t=Date.now()/300;
+emoji(m.e,W/2,H*0.4+Math.sin(t)*4,Math.min(W,H)*0.28);
+const fs=Math.max(15,Math.min(20,Math.floor(W/32)));
+txt(m.name,W/2,H*0.4+Math.min(W,H)*0.17,fs,'#fff','center');
+cx.textAlign='left';
+drawHud();
+}
+function drawStatus(){
+const fs=Math.max(14,Math.min(20,Math.floor(W/30)));
+const lines=[
+['なまえ',g.name],['レベル',g.lv],['HP',g.hp+'/'+maxHP(g.lv)],['MP',g.mp+'/'+maxMP(g.lv)],
+['こうげき力',pAtkV()],['しゅび力',pDefV()],
+['けいけんち',g.exp],['つぎのLVまで',g.lv>=MAXLV?'---':Math.max(0,expFor(g.lv+1)-g.exp)],
+['ゴールド',g.gold],
+['ぶき',g.wp>=0?WEAPONS[g.wp].n:'なし'],['よろい',g.ar>=0?ARMORS[g.ar].n:'なし'],['たて',g.sh>=0?SHIELDS[g.sh].n:'なし']
+];
+const w=Math.min(W-20,fs*19),h=lines.length*Math.floor(fs*1.5)+40;
+const x=(W-w)/2,y=Math.max(10,(H-h)/2-20);
+winBox(x,y,w,h);
+lines.forEach((l,i)=>{
+txt(l[0],x+24,y+22+i*Math.floor(fs*1.5),fs,'#ffd95e');
+txt(String(l[1]),x+w-24,y+22+i*Math.floor(fs*1.5),fs,'#fff','right');
+});
+cx.textAlign='left';
+}
+function drawTitle(){
+const grd=cx.createLinearGradient(0,0,0,H);
+grd.addColorStop(0,'#06061a');grd.addColorStop(1,'#1c0f2e');
+cx.fillStyle=grd;cx.fillRect(0,0,W,H);
+for(let i=0;i<40;i++){
+const sx=(i*97)%W,sy=(i*61)%(H*0.5);
+cx.fillStyle='rgba(255,255,255,'+(0.3+(i%5)*0.1)+')';
+cx.fillRect(sx,sy,2,2);
+}
+emoji('🐲',W/2,H*0.24,Math.min(W,H)*0.18);
+const fs=Math.min(W/12,52);
+txt('DRAGON LEGEND',W/2,H*0.38,fs,'#ffd95e','center');
+txt('～ 勇者と魔竜王 ～',W/2,H*0.38+fs*1.3,fs*0.5,'#fff','center');
+const f2=Math.max(12,fs*0.32);
+txt(isTouch?'十字キーで移動 / A:はなす・けってい / B:メニュー':'矢印キー:移動  Z/Enter:けってい  X/Esc:メニュー・キャンセル',W/2,H*0.88,f2,'#aaa','center');
+cx.textAlign='left';
+}
+function drawEnding(){
+cx.fillStyle='#000';cx.fillRect(0,0,W,H);
+const fs=Math.min(W/16,34);
+endLines.forEach((l,i)=>{
+const y=H-endT*1.2+i*fs*2;
+if(y>-fs&&y<H+fs)txt(l,W/2,y,l==='THE END'?fs*1.4:fs,l.includes('LEGEND')||l==='THE END'?'#ffd95e':'#fff','center');
+});
+if(endT>endLines.length*40+120&&Math.floor(Date.now()/500)%2===0)
+txt('PRESS A',W/2,H*0.9,fs*0.6,'#888','center');
+cx.textAlign='left';
+}
+function draw(){
+if(scene==='title')drawTitle();
+else if(scene==='field')drawField();
+else if(scene==='battle')drawBattle();
+else if(scene==='ending')drawEnding();
+if(statusOpen)drawStatus();
+if(MS.length&&scene!=='title')drawMenus();
+if(scene==='title'&&MS.length){
+const m=MS[0];
+const fs=Math.min(W/18,28);
+const items=m.items;
+const w=fs*9,h=items.length*fs*1.7+30;
+const x=(W-w)/2,y=H*0.55;
+winBox(x,y,w,h);
+items.forEach((it,i)=>{
+if(i===m.sel)txt('▶',x+fs,y+20+i*fs*1.7,fs);
+txt(it,x+fs*2.4,y+20+i*fs*1.7,fs,i===m.sel?'#fff':'#bbb');
+});
+}
+if(msgActive())drawMsgWin();
+if(scene==='field'||scene==='battle')drawTouchUI();
+}
+
+// ===== MAIN LOOP =====
+function loop(t){
+const dt=Math.min(0.05,(t-last)/1000);last=t;
+update(dt);
+draw();
+requestAnimationFrame(loop);
+}
+toTitle();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
